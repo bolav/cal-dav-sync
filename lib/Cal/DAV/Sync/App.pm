@@ -67,7 +67,19 @@ sub get_hrefs {
 
 sub run {
     my $self = shift;
-    print $self->cal->cal;
+    
+    my $cal_rs = $self->schema->resultset('Calendar')->search( {url => $self->url} );
+    my $cal = $cal_rs->first;
+    if (!$cal) {
+        $cal = $self->schema->resultset('Calendar')->create({ url => $self->url, ctag => '', });
+    }
+    
+    my $dl_cal =  $self->cal->cal;
+    $cal->update({ ctag => $self->cal->ctag });
+    if (ref $dl_cal eq 'Data::ICal::Folder') {
+        print "Downloaded folder\n";
+        $cal->save_ical_folder($dl_cal);
+    }
 }
 
 sub get_calendar_home {

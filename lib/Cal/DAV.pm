@@ -10,6 +10,7 @@ use HTTP::DAV;
 use Moose;
 
 has 'calfolder' => (is => 'rw', isa => 'Data::ICal::Folder', lazy_build => 1,);
+has 'ctag' => (is => 'rw', isa => 'Str');
 
 sub _build_calfolder {
     my $self = shift;
@@ -226,9 +227,9 @@ sub get_dir {
     </D:prop>' );
 =cut
     $res->propfind( -depth => 1, );
-    
-    my $main_cal;
-    
+    $self->ctag($res->get_property('getctag'));
+    # Save ctag
+        
     my $i = 0;
     
     my $rl = $res->get_resourcelist;
