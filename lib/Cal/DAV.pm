@@ -187,8 +187,6 @@ These will lose any local changes.
 
 =cut
 
-use Data::Dump qw/dump/;
-
 sub get {
     my $self = shift;
     my $url  = shift || $self->{url};
@@ -235,31 +233,17 @@ sub get_dir {
     
     my $rl = $res->get_resourcelist;
     foreach my $r ( $rl->get_resources() ) {
-#        'getlastmodified': Thu, 18 Mar 2010 12:48:59 +0100 (CET)
-#        'lastmodifieddate': Thu, 18 Mar 2010 11:48:59 GMT
-#        'lastmodifiedepoch': 1268912939
-#        'resourcetype':
-        print $r->get_uri(),"\n";
-        my $cres = $self->dav->new_resource( -uri => $r->get_uri() );
-        my $ret = $cres->get();
-        my $data = $cres->get_content();
-
-        # Save individuals files. Maybe as an option
-
-        if (!$main_cal) {
-            $main_cal = Data::ICal->new(data => $data);
-        } 
-        else {
-            my $cal = Data::ICal->new(data => $data);
-            foreach my $e (@{$cal->entries}) {
-                $main_cal->add_entry($e);
+        $self->calfolder->add_entry(
+            { 
+                url   => $r->get_uri,
+                etag  => $r->get_property('getetag'),
+                displayname => $r->get_property('displayname'),
+                lastmodified  => $r->get_property('lastmodifiedepoch'),
             }
-        }
-        last if ($i++ > 10)
+        );
     }
     
-    $self->{_cal} = $main_cal;
-    
+    $self->{_cal} = $self->calfolder;
     
     # return $res->propfind();
     return $res;

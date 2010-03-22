@@ -7,12 +7,13 @@ with 'MooseX::Getopt';
 
 use Cal::DAV;
 use Cal::DAV::Sync::Schema;
-use XML::DOM::Parser;
+# use XML::DOM::Parser;
 use HTTP::DAV::Utils;
 
 has 'user' => (is => 'rw', isa => 'Str');
 has 'pass' => (is => 'rw', isa => 'Str');
 has 'url' => (is => 'rw', isa => 'Str');
+has 'dsn' => (is => 'rw', isa => 'Str', default => 'dbi:SQLite:sync.db');
 
 has 'cal' => (is => 'rw', isa => 'Cal::DAV', lazy_build => 1);
 has 'parser' => (is => 'rw', isa => 'XML::DOM::Parser', lazy_build => 1);
@@ -21,7 +22,7 @@ has 'schema' => (is => 'rw', isa => 'Cal::DAV::Sync::Schema', lazy_build => 1);
 sub _build_schema {
     my $self = shift;
     
-    Cal::DAV::Sync::Schema->new;
+    Cal::DAV::Sync::Schema->connect($self->dsn);
 }
 
 sub _build_parser {
@@ -66,7 +67,7 @@ sub get_hrefs {
 
 sub run {
     my $self = shift;
-    print $self->cal->cal->as_string;
+    print $self->cal->cal;
 }
 
 sub get_calendar_home {
