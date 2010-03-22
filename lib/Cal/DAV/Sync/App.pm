@@ -6,14 +6,23 @@ use Moose;
 with 'MooseX::Getopt';
 
 use Cal::DAV;
+use Cal::DAV::Sync::Schema;
+use XML::DOM::Parser;
+use HTTP::DAV::Utils;
 
 has 'user' => (is => 'rw', isa => 'Str');
 has 'pass' => (is => 'rw', isa => 'Str');
 has 'url' => (is => 'rw', isa => 'Str');
 
 has 'cal' => (is => 'rw', isa => 'Cal::DAV', lazy_build => 1);
-
 has 'parser' => (is => 'rw', isa => 'XML::DOM::Parser', lazy_build => 1);
+has 'schema' => (is => 'rw', isa => 'Cal::DAV::Sync::Schema', lazy_build => 1);
+
+sub _build_schema {
+    my $self = shift;
+    
+    Cal::DAV::Sync::Schema->new;
+}
 
 sub _build_parser {
     my $self = shift;
@@ -32,7 +41,6 @@ sub _build_cal {
 
 use Data::Dump qw/dump/;
 
-use HTTP::DAV::Utils;
 sub get_hrefs {
     my $self = shift;
     my ($res, $property) = @_;
@@ -58,14 +66,7 @@ sub get_hrefs {
 
 sub run {
     my $self = shift;
-    # dump $self->cal;
-    # $self->cal->get;
     print $self->cal->cal->as_string;
-    # print $self->cal->{_cal}->as_string;
-    
-#    my $dav = $self->cal->dav;
-#    dump $dav;
-#    dump $self->cal->get_dir('https://ms1.startsiden.no/dav/bolav/Calendar/');
 }
 
 sub get_calendar_home {

@@ -3,7 +3,19 @@ package Cal::DAV;
 
 use strict;
 use Data::ICal;
+use Data::ICal::Folder;
+
 use HTTP::DAV;
+
+use Moose;
+
+has 'calfolder' => (is => 'rw', isa => 'Data::ICal::Folder', lazy_build => 1,);
+
+sub _build_calfolder {
+    my $self = shift;
+    
+    Data::ICal::Folder->new;
+}
 
 our $VERSION="0.6";
 
@@ -209,7 +221,13 @@ sub get_dir {
     my $url  = shift || $self->{url};
     # my $res  = $self->dav->open( -uri => $url );
     my $res  = $self->dav->new_resource( -uri => $url );
-    $res->propfind( -depth => 1 );
+=for
+    $res->propfind( -depth => 1, text => '<D:prop>
+     <D:getetag/>
+     <D:resourcetype/>
+    </D:prop>' );
+=cut
+    $res->propfind( -depth => 1, );
     
     my $main_cal;
     
