@@ -208,7 +208,7 @@ sub get {
     my $url  = shift || $self->{url};
     my $res  = $self->dav->new_resource( -uri => $url );
     # dump $res->propfind( -depth => 0 );
-    $res->propfind( -depth => 0 );
+    $res->propfind( -depth => 0, );
     if ($res->is_collection) {
         # $res->propfind( -depth => 1 );
         $self->get_dir();
@@ -235,12 +235,11 @@ sub get_dir {
     my $url  = shift || $self->{url};
     # my $res  = $self->dav->open( -uri => $url );
     my $res  = $self->dav->new_resource( -uri => $url );
-=for
-    $res->propfind( -depth => 1, text => '<D:prop>
-     <D:getetag/>
-     <D:resourcetype/>
-    </D:prop>' );
-=cut
+#    $res->propfind( -depth => 1, -text => '<D:prop>
+#     <D:getetag/>
+#     <D:resourcetype/>
+#    </D:prop>' );
+
     $res->propfind( -depth => 1, );
     $self->ctag($res->get_property('getctag'));
     # Save ctag
@@ -522,7 +521,7 @@ sub get_calendars {
     my $self = shift;
     my ($url) = @_;
     
-    my $res = $self->cal->dav->new_resource( -uri => $url );
+    my $res = $self->dav->new_resource( -uri => $url );
     $res->propfind( -depth => 1, -text => '
     <D:prop xmlns:x3="http://apple.com/ns/ical/" xmlns:x2="urn:ietf:params:xml:ns:caldav">
      <CS:getctag xmlns:CS="http://calendarserver.org/ns/"/>

@@ -22,7 +22,8 @@ sub add_entry {
 
 sub entries {
     my $self = shift;
-    return values %{$self->entries_hash};
+    my @retval = values %{$self->entries_hash};
+    return \@retval;
 }
 
 sub exists_fn {

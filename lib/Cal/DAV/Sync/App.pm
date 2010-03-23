@@ -70,7 +70,7 @@ sub run {
     my $dl_cal1 =  $self->cal1->cal;
     my $dl_cal2 =  $self->cal2->cal;
     
-    if ($self->cal1->ctag eq $cal1->ctag) {
+    if ($cal1->ctag and $self->cal1->ctag eq $cal1->ctag) {
         print "No changes in cal1\n";
     }
     else {
@@ -81,7 +81,7 @@ sub run {
         }
     }
 
-    if ($self->cal2->ctag eq $cal2->ctag) {
+    if ($cal2->ctag and $self->cal2->ctag eq $cal2->ctag) {
         print "No changes in cal2\n";
     }
     else {
@@ -96,9 +96,9 @@ sub run {
     $self->cal1->dav->DebugLevel(2);
     $self->cal2->dav->DebugLevel(2);
     
-    foreach my $e ($dl_cal1->entries) {
+    foreach my $e (@{$dl_cal1->entries}) {
         if ($dl_cal2->exists_fn($e->fn)) {
-            print "Existing event".$e->as_string."\n";
+            print "Existing event ".$e->as_string."\n";
         }
         else {
             if (! defined $e->cal) {
@@ -113,9 +113,9 @@ sub run {
     $self->cal2->auto_commit(0);
 
     $self->cal1->auto_commit(0);
-    foreach my $e ($dl_cal2->entries) {
+    foreach my $e (@{$dl_cal2->entries}) {
         if ($dl_cal1->exists_fn($e->fn)) {
-            print "Existing event".$e->as_string."\n";
+            print "Existing event ".$e->as_string."\n";
         }
         else {
             if (! defined $e->cal) {
