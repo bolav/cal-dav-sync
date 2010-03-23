@@ -29,7 +29,7 @@ sub _build_fn {
 sub as_string {
     my $self = shift;
     
-    if (defined $self->displayname) {
+    if (defined $self->displayname and $self->displayname) {
         return $self->displayname;
     }
     return $self->fn;
