@@ -4,7 +4,7 @@ use Moose;
 
 use Data::ICal::Folder::Entry;
 
-has 'entries' => (is => 'rw', isa => 'ArrayRef[Data::Ical::Folder::Entry]', default => sub { [] });
+has 'entries_hash' => (is => 'rw', isa => 'HashRef', default => sub { {} });
 
 sub add_entry {
     my $self = shift;
@@ -17,7 +17,22 @@ sub add_entry {
         $entry = Data::ICal::Folder::Entry->new(%{$entry_data});
     }
     
-    push @{$self->entries}, $entry;
+    $self->entries_hash->{$entry->fn} = $entry;
+}
+
+sub entries {
+    my $self = shift;
+    return values %{$self->entries_hash};
+}
+
+sub exists_fn {
+    my $self = shift;
+    my ($fn) = @_;
+    
+    if (defined $self->entries_hash->{$fn}) {
+        return 1;
+    }
+    return 0;
 }
 
 1;

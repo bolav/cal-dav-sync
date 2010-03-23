@@ -6,11 +6,21 @@ use Data::ICal;
 use Data::ICal::Folder;
 
 use HTTP::DAV;
+use HTTP::DAV::Utils;
 
 use Moose;
 
 has 'calfolder' => (is => 'rw', isa => 'Data::ICal::Folder', lazy_build => 1,);
+has 'isfolder' => (is => 'rw', isa => 'Bool', default => 0,);
 has 'ctag' => (is => 'rw', isa => 'Str');
+has 'parser' => (is => 'rw', isa => 'XML::DOM::Parser', lazy_build => 1);
+
+sub _build_parser {
+    my $self = shift;
+    
+    XML::DOM::Parser->new();
+    
+}
 
 sub _build_calfolder {
     my $self = shift;
@@ -139,6 +149,11 @@ sub save {
     my $url  = shift || $self->{url};
     my $cal  = $self->{_cal}; # TODO should this be cal()
     return 1 unless defined $cal;
+    
+    if ($self->isfolder) {
+        return $self->save_folder;
+    }
+    
     my $res  = $self->dav->new_resource( -uri => $url );
     #unless ($self->{_fetched}) {
         #my $ret = $res->mkcol;
@@ -236,20 +251,40 @@ sub get_dir {
     foreach my $r ( $rl->get_resources() ) {
         $self->calfolder->add_entry(
             { 
-                url   => $r->get_uri,
-                etag  => $r->get_property('getetag'),
-                displayname => $r->get_property('displayname'),
+                url           => $r->get_uri,
+                etag          => $r->get_property('getetag'),
+                displayname   => $r->get_property('displayname'),
                 lastmodified  => $r->get_property('lastmodifiedepoch'),
             }
         );
     }
     
     $self->{_cal} = $self->calfolder;
+    $self->isfolder(1);
     
     # return $res->propfind();
     return $res;
 }
 
+sub add_event {
+    my $self = shift;
+    my ($aentry) = @_;
+    
+    # Clone entry
+    my $entry = $aentry->clone; # ->clone;
+    
+    $self->calfolder->add_entry($entry);
+    if ($self->auto_commit) {
+        my $href_uri = HTTP::DAV::Utils::make_uri($entry->fn);
+        my $res_url = $href_uri->abs( $self->{url} );
+        print "Saving $res_url\n";
+        my $res = $self->dav->new_resource( -uri => $res_url );
+        $res->put($entry->cal->as_string, 'text/calendar');
+    }
+    else {
+        $entry->dirty(1);        
+    }
+}
 
 =head2 lock 
 
@@ -424,15 +459,100 @@ sub DESTROY {
     $self->save if $self->auto_commit; 
 }
 
+=head2 get_hrefs
+
+Get the hrefs from a property.
+
+=cut
+
+sub get_hrefs {
+    my $self = shift;
+    my ($res, $property) = @_;
+    
+    my @retval;
+    
+    my $content = $res->get_property($property);
+    my $doc = $self->parser->parse($content);
+
+    my @nodes_href= HTTP::DAV::Utils::get_elements_by_tag_name($doc,"D:href");
+    
+    my $href;
+    
+    foreach my $node_href (@nodes_href) {
+        $href = $node_href->getFirstChild->getNodeValue();
+        my $href_uri = HTTP::DAV::Utils::make_uri($href);
+        my $res_url = $href_uri->abs( $res->get_uri );
+        push @retval, $res_url;
+    }
+    
+    return @retval;
+}
+
+=head2 get_calendar_home
+
+Returns the uri for calendar-home-set of a dav address.
+
+=cut
+
+sub get_calendar_home {
+    my $self = shift;
+    my ($url) = @_;
+    
+    my $res = $self->cal->dav->new_resource( -uri => $url );
+    $res->propfind( -depth => 0, -text => '
+    <D:prop xmlns:x1="urn:ietf:params:xml:ns:caldav">
+     <x1:calendar-home-set/>
+     <x1:calendar-user-address-set/>
+     <x1:schedule-inbox-URL/>
+     <x1:schedule-outbox-URL/>
+     <D:displayname/>
+    </D:prop>' );
+    
+    my @hrefs = $self->get_hrefs($res, 'calendar-home-set');
+    return $hrefs[0];
+}
+
+=head2 get_calendars
+
+Returns the URIs for the calendars in a collection.
+
+=cut
+
+sub get_calendars {
+    my $self = shift;
+    my ($url) = @_;
+    
+    my $res = $self->cal->dav->new_resource( -uri => $url );
+    $res->propfind( -depth => 1, -text => '
+    <D:prop xmlns:x3="http://apple.com/ns/ical/" xmlns:x2="urn:ietf:params:xml:ns:caldav">
+     <CS:getctag xmlns:CS="http://calendarserver.org/ns/"/>
+     <D:displayname/>
+     <x2:calendar-description/>
+     <x3:calendar-color/>
+     <x3:calendar-order/>
+     <D:resourcetype/>
+     <x2:calendar-free-busy-set/>
+    </D:prop>
+    ' );
+    
+    my @retval;
+    
+    foreach my $res_c ($res->get_resourcelist->get_resources()) {
+        if ($res_c->get_property('resourcetype') =~ /calendar/) { # This needs an update in HTTP::DAV::Resource
+            push @retval, $res_c->get_uri;
+        }
+    }
+    return @retval;
+}
 
 
 =head1 AUTHOR
 
-Simon Wistow <simon@thegestalt.org>
+Simon Wistow <simon@thegestalt.org>, Bjørn-Olav Strand <bo@startsiden.no>
 
 =head1 COPYRIGHT
 
-Copyright 2007, Simon Wistow
+Copyright 2007-2010, Simon Wistow & ABC Startsiden AS
 
 Released under the same terms as Perl itself.
 

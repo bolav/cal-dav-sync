@@ -522,12 +522,13 @@ sub GET { shift->get( @_ ); }
 # put/PUT the body contents
 
 sub put {
-   my ($self,$content) = @_;
+   my ($self,$content,$ct) = @_;
    my $resp;
 
    # Setup the If: header if it is locked
    my $headers = HTTP::DAV::Headers->new();
    $self->_setup_if_headers($headers);
+   $headers->header( "Content-Type", $ct ) if $ct;
 
    if ( ! defined $content ) {
       $content = $self->get_content();

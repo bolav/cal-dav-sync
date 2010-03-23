@@ -7,16 +7,19 @@ with 'MooseX::Getopt';
 
 use Cal::DAV;
 use Cal::DAV::Sync::Schema;
-# use XML::DOM::Parser;
-use HTTP::DAV::Utils;
 
-has 'user' => (is => 'rw', isa => 'Str');
-has 'pass' => (is => 'rw', isa => 'Str');
-has 'url' => (is => 'rw', isa => 'Str');
+has 'user1' => (is => 'rw', isa => 'Str');
+has 'pass1' => (is => 'rw', isa => 'Str');
+has 'url1' => (is => 'rw', isa => 'Str');
+
+has 'user2' => (is => 'rw', isa => 'Str');
+has 'pass2' => (is => 'rw', isa => 'Str');
+has 'url2' => (is => 'rw', isa => 'Str');
+
 has 'dsn' => (is => 'rw', isa => 'Str', default => 'dbi:SQLite:sync.db');
 
-has 'cal' => (is => 'rw', isa => 'Cal::DAV', lazy_build => 1);
-has 'parser' => (is => 'rw', isa => 'XML::DOM::Parser', lazy_build => 1);
+has 'cal1' => (is => 'rw', isa => 'Cal::DAV', lazy_build => 1);
+has 'cal2' => (is => 'rw', isa => 'Cal::DAV', lazy_build => 1);
 has 'schema' => (is => 'rw', isa => 'Cal::DAV::Sync::Schema', lazy_build => 1);
 
 sub _build_schema {
@@ -25,106 +28,111 @@ sub _build_schema {
     Cal::DAV::Sync::Schema->connect($self->dsn);
 }
 
-sub _build_parser {
+sub _build_cal1 {
     my $self = shift;
     
-    XML::DOM::Parser->new();
-    
+    Cal::DAV->new( user => $self->user1, pass => $self->pass1, url => $self->url1, );
 }
 
-sub _build_cal {
+sub _build_cal2 {
     my $self = shift;
     
-    my $c = Cal::DAV->new( user => $self->user, pass => $self->pass, url => $self->url, DebugLevel => 2);
-    $c->dav->DebugLevel(2);
-    return $c;
+    Cal::DAV->new( user => $self->user2, pass => $self->pass2, url => $self->url2, );
 }
+
 
 use Data::Dump qw/dump/;
 
-sub get_hrefs {
+sub _get_cal {
     my $self = shift;
-    my ($res, $property) = @_;
+    my ($url) = @_;
     
-    my @retval;
-    
-    my $content = $res->get_property($property);
-    my $doc = $self->parser->parse($content);
-
-    my @nodes_href= HTTP::DAV::Utils::get_elements_by_tag_name($doc,"D:href");
-    
-    my $href;
-    
-    foreach my $node_href (@nodes_href) {
-        $href = $node_href->getFirstChild->getNodeValue();
-        my $href_uri = HTTP::DAV::Utils::make_uri($href);
-        my $res_url = $href_uri->abs( $res->get_uri );
-        push @retval, $res_url;
+    my $cal_rs = $self->schema->resultset('Calendar')->search( {url => $url} );
+    my $cal = $cal_rs->first;
+    if (!$cal) {
+        $cal = $self->schema->resultset('Calendar')->create({ url => $url, ctag => '', });
     }
-    
-    return @retval;
+    return $cal;
 }
 
 sub run {
     my $self = shift;
     
-    my $cal_rs = $self->schema->resultset('Calendar')->search( {url => $self->url} );
-    my $cal = $cal_rs->first;
-    if (!$cal) {
-        $cal = $self->schema->resultset('Calendar')->create({ url => $self->url, ctag => '', });
+    # Get CAL 1.
+    # Get CAL 2.
+    
+    # Check ctag, for changes
+    # Check that all things are in both
+    
+    my $cal1 = $self->_get_cal($self->url1);
+    my $cal2 = $self->_get_cal($self->url2);
+    
+    my $dl_cal1 =  $self->cal1->cal;
+    my $dl_cal2 =  $self->cal2->cal;
+    
+    if ($self->cal1->ctag eq $cal1->ctag) {
+        print "No changes in cal1\n";
     }
-    
-    my $dl_cal =  $self->cal->cal;
-    $cal->update({ ctag => $self->cal->ctag });
-    if (ref $dl_cal eq 'Data::ICal::Folder') {
-        print "Downloaded folder\n";
-        $cal->save_ical_folder($dl_cal);
-    }
-}
-
-sub get_calendar_home {
-    my $self = shift;
-    my ($url) = @_;
-    
-    my $res = $self->cal->dav->new_resource( -uri => $url );
-    $res->propfind( -depth => 0, -text => '
-    <D:prop xmlns:x1="urn:ietf:params:xml:ns:caldav">
-     <x1:calendar-home-set/>
-     <x1:calendar-user-address-set/>
-     <x1:schedule-inbox-URL/>
-     <x1:schedule-outbox-URL/>
-     <D:displayname/>
-    </D:prop>' );
-    
-    my @hrefs = $self->get_hrefs($res, 'calendar-home-set');
-    return $hrefs[0];
-}
-
-sub get_calendars {
-    my $self = shift;
-    my ($url) = @_;
-    
-    my $res = $self->cal->dav->new_resource( -uri => $url );
-    $res->propfind( -depth => 1, -text => '
-    <D:prop xmlns:x3="http://apple.com/ns/ical/" xmlns:x2="urn:ietf:params:xml:ns:caldav">
-     <CS:getctag xmlns:CS="http://calendarserver.org/ns/"/>
-     <D:displayname/>
-     <x2:calendar-description/>
-     <x3:calendar-color/>
-     <x3:calendar-order/>
-     <D:resourcetype/>
-     <x2:calendar-free-busy-set/>
-    </D:prop>
-    ' );
-    
-    my @retval;
-    
-    foreach my $res_c ($res->get_resourcelist->get_resources()) {
-        if ($res_c->get_property('resourcetype') =~ /calendar/) {
-            push @retval, $res_c->get_uri;
+    else {
+        if (ref $dl_cal1 eq 'Data::ICal::Folder') {
+            print "Downloaded folder cal1\n";
+            $cal1->save_ical_folder($dl_cal1);
+            # Check for deletes
         }
     }
-    return @retval;
+
+    if ($self->cal2->ctag eq $cal2->ctag) {
+        print "No changes in cal2\n";
+    }
+    else {
+        if (ref $dl_cal2 eq 'Data::ICal::Folder') {
+            print "Downloaded folder cal2\n";
+            $cal2->save_ical_folder($dl_cal2);
+            # Check for deletes
+        }
+    }
+
+    $self->cal2->auto_commit(1);
+    $self->cal1->dav->DebugLevel(2);
+    $self->cal2->dav->DebugLevel(2);
+    
+    foreach my $e ($dl_cal1->entries) {
+        if ($dl_cal2->exists_fn($e->fn)) {
+            print "Existing event".$e->as_string."\n";
+        }
+        else {
+            if (! defined $e->cal) {
+                my $newe = Cal::DAV->new( user => $self->user1, pass => $self->pass1, url => $e->url, );
+                $e->cal($newe->cal);
+            }
+            print "saving ".$e->as_string." to ".$self->url2."\n";
+
+            $self->cal2->add_event($e);
+        }
+    }
+    $self->cal2->auto_commit(0);
+
+    $self->cal1->auto_commit(0);
+    foreach my $e ($dl_cal2->entries) {
+        if ($dl_cal1->exists_fn($e->fn)) {
+            print "Existing event".$e->as_string."\n";
+        }
+        else {
+            if (! defined $e->cal) {
+                my $newe = Cal::DAV->new( user => $self->user2, pass => $self->pass2, url => $e->url, );
+                $e->cal($newe->cal);
+            }
+            print "saving ".$e->as_string." to ".$self->url1."\n";
+
+            $self->cal1->add_event($e);
+        }
+    }
+    $self->cal1->auto_commit(0);
+    
+    
+    $cal1->update({ ctag => $self->cal1->ctag });
+    $cal2->update({ ctag => $self->cal2->ctag });
+    
 }
 
 1;
